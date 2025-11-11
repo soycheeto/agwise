@@ -8,8 +8,8 @@ conn = sqlite3.connect('sensor_data.db')
 df = pd.read_sql_query("SELECT * FROM sensor_readings", conn)
 
 # Export the DataFrame to a CSV file
-df.to_csv('sensor_readings.csv', index=False)
+df.to_csv('sensor_data.csv', index=False)
 
 conn.close()
 
-print("Converted sensor_readings table from sensor_data.db into sensor_readings.csv")
+print("Converted sensor_readings table from sensor_data.db into sensor_data.csv")

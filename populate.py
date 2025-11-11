@@ -13,7 +13,7 @@ cursor.execute('DROP TABLE IF EXISTS sensor_readings')
 cursor.execute('''
 CREATE TABLE sensor_readings (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    soil_moisture REAL,
+    soil_moisture REAL, -- soil moiture in volumetric water content (%)
     temperature REAL,
     wind_speed REAL,
     wind_direction INTEGER,

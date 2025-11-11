@@ -23,63 +23,62 @@ def perplexity_query(messages):
         "model": "sonar-reasoning",
         "messages": messages,
         "temperature": 0.7,
-        "max_tokens": 100,  # Reduced token limit for concise output
+        "max_tokens": 500,
     }
     response = requests.post(url, headers=headers, json=json_data, timeout=30)
     response.raise_for_status()
     data = response.json()
     return data["choices"][0]["message"]["content"]
 
-# Load sensor data from CSV
+# Load CSV sensor data once
 df = pd.read_csv("sensor_data.csv", parse_dates=["timestamp"])
 
+# Preview first 5 records to confirm load
 print("Preview of 5 entries in sensor_data.csv:")
 print(df.head())
 
 class State(TypedDict):
     question: str
-    data_summary: str
+    data_summary: str  # Replace query with summarized data string
+    result: str
     answer: str
 
 def generate_data_summary(state: State) -> State:
+    # Example: filter recent data (last day), get essential stats
     recent = df[df["timestamp"] >= pd.Timestamp.now() - pd.Timedelta(days=1)]
+    # Summarize relevant columns, e.g. mean soil moisture, temperature ranges
     soil_moisture_avg = recent["soil_moisture"].mean()
-    temperature_avg = recent["temperature"].mean()
+    temp_avg = recent["temperature"].mean()
     humidity_avg = recent["humidity"].mean()
     summary = (
-        f"Average soil moisture: {soil_moisture_avg:.1f}%, "
-        f"temperature: {temperature_avg:.1f}°C, "
-        f"humidity: {humidity_avg:.1f}%."
+        f"Recent soil moisture average: {soil_moisture_avg:.2f}, "
+        f"temperature average: {temp_avg:.1f}C, "
+        f"humidity average: {humidity_avg:.1f}%."
     )
     state["data_summary"] = summary
     return state
 
+def run_dummy_query(state: State) -> State:
+    # No query needed, placeholder to fit graph structure
+    state["result"] = state.get("data_summary", "")
+    return state
+
 def generate_decision(state: State) -> State:
-    prompt = (
-        "Provide a clear, direct irrigation recommendation in exactly one sentence to the farmer. "
-        "Do NOT provide explanations, uncertainty, or hedging. "
-        "Respond only with the one sentence.\n\n"
-        f"Sensor data summary: {state['data_summary']}\n"
-        f"Question: {state['question']}\n"
-        "Irrigation recommendation:"
-    )
     messages = [
-        {"role": "system", "content": "You are an expert agronomist."},
-        {"role": "user", "content": prompt}
+        {"role": "system", "content": "Based on sensor data summary and question, provide an agricultural decision or answer."},
+        {"role": "user", "content": f"Sensor data summary: {state['data_summary']}\nQuestion: {state['question']}"}
     ]
     answer = perplexity_query(messages)
-    # Extract first sentence, remove trailing tokens like '<think>'
-    first_sentence = re.split(r'[.\n<]', answer.strip())[0].strip()
-    if not first_sentence.endswith('.'):
-        first_sentence += '.'
-    state["answer"] = first_sentence
+    state["answer"] = answer
     return state
 
 graph = StateGraph(State)
-graph.add_node("generate_summary", generate_data_summary)
+graph.add_node("generate_data_summary", generate_data_summary)
+graph.add_node("dummy_query", run_dummy_query)
 graph.add_node("generate_decision", generate_decision)
-graph.add_edge(START, "generate_summary")
-graph.add_edge("generate_summary", "generate_decision")
+graph.add_edge(START, "generate_data_summary")
+graph.add_edge("generate_data_summary", "dummy_query")
+graph.add_edge("dummy_query", "generate_decision")
 graph.add_edge("generate_decision", END)
 
 agent = graph.compile()
@@ -87,6 +86,7 @@ agent = graph.compile()
 initial_state = {
     "question": "Should I irrigate my crop field today based on current soil moisture and weather?",
     "data_summary": "",
+    "result": "",
     "answer": "",
 }
 
